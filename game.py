@@ -1,95 +1,61 @@
-from random import randint
-import sys, getopt
+def play_turn(player_actions, total_points=None, resources=2):
+    if total_points == None:
+        total_points = {player: 0 for player in player_actions.keys()}
+    turn_points = {player: 2 for player in player_actions.keys()}
+    lost_players = set()
 
+    # Calculate points for each player
+    for player, action in player_actions.items():
+        # If player is lost, skip
+        if player in lost_players:
+            continue
 
-def main(players, resources, total_turns, debug):
-    total_points = [0] * players
+        # If player is betrayed too many times, nullify points and end turn
+        times_betrayed = list(player_actions.values()).count(player)
+        if times_betrayed > resources:
+            turn_points = {player: 0 for player in player_actions.keys()}
+            break
 
-    # For each turn
-    for turn in range(total_turns):
-        turn_points = [resources] * players
-        lost_players = set()
-        betrayed_players = [-1] * players
+        # If cooperates, skip
+        if action == None:
+            continue
 
-        # Each player decides to betray or cooperate
-        for player in range(players):
-            betray_player = randint(-1, players - 1)
-            if betray_player == player:
-                betray_player = -1
-            betrayed_players[player] = betray_player
-            if betray_player == -1:
-                if debug:
-                    print(f"Player {player} cooperates")
-                continue
-            if debug:
-                print(f"Player {player} betrays {betray_player}")
+        # If both players betray each other, add to lost players
+        if player_actions[action] == player:
+            lost_players.add(player)
+            lost_players.add(action)
+            continue
 
-        # Calculate points for each player
-        for player in range(players):
-            # If player is lost, skip
-            if player in lost_players:
-                continue
+        # If player betrays and other doesn't, steal point
+        turn_points[player] += 1
+        turn_points[action] -= 1
 
-            # If player is betrayed too many times, nullify points and end turn
-            times_betrayed = betrayed_players.count(player)
-            if times_betrayed > resources:
-                turn_points = [0] * players
-                if debug:
-                    print(f"Player {player} betrayed too many times")
-                break
-            betray = betrayed_players[player]
+    # Remove points from lost players
+    for player in lost_players:
+        turn_points[player] = -1
 
-            # If cooperates, skip
-            if betray == -1:
-                continue
+    # Add points to total points
+    total_points = {
+        player: total_points[player] + turn_points[player]
+        for player in player_actions.keys()
+    }
 
-            # If both players betray each other, add to lost players
-            if betrayed_players[betray] == player:
-                if debug:
-                    print(f"Player {player} and {betray} betrayed each other")
-                lost_players.add(player)
-                lost_players.add(betray)
-                continue
+    result = {
+        player: (action, turn_points[player], total_points[player])
+        for player, action in player_actions.items()
+    }
 
-            # If player betrays and other doesn't, steal point
-            turn_points[player] += 1
-            turn_points[betray] -= 1
-
-        # Remove points from lost players
-        for player in lost_players:
-            turn_points[player] = -1
-
-        total_points = [total_points[i] + turn_points[i] for i in range(players)]
-        if debug:
-            input(f"Turn {turn + 1}: {turn_points} -> {total_points}")
-    if debug:
-        print(f"Total points: {total_points}")
-        print(f"Winner: {total_points.index(max(total_points))}")
-    return total_points
+    return result, total_points
 
 
 if __name__ == "__main__":
-    try:
-        opts, args = getopt.getopt(
-            sys.argv[1:], "p:r:t:d", ["players=", "resources=", "turns=", "debug"]
-        )
-    except getopt.GetoptError:
-        print("game.py [-p <players>] [-r <resources>] [-t <turns>] [-d]")
-        sys.exit(2)
 
-    players = 4
-    resources = 2
-    total_turns = 20
-    debug = False
-    for opt, arg in opts:
-        if opt in ("-p", "--players"):
-            players = int(arg)
-        elif opt in ("-r", "--resources"):
-            resources = int(arg)
-        elif opt in ("-t", "--turns"):
-            total_turns = int(arg)
-        elif opt in ("-d", "--debug"):
-            debug = True
+    actions1 = {"J1": "J2", "J2": "J3", "J3": None, "J4": "J3"}
+    results1, total_points1 = play_turn(actions1)
+    print(results1)
+    print(total_points1)
 
-    result = main(players, resources, total_turns, debug)
-    print(result)
+    actions2 = {"J1": "J2", "J2": "J3", "J3": "J4", "J4": "J3"}
+    results2, total_points2 = play_turn(actions2, total_points1)
+    print(results2)
+    print(total_points2)
