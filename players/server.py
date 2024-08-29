@@ -6,33 +6,38 @@ import threading
 class GameService(rpyc.Service):
     def __init__(self):
         self.players = {}
+        self.connections = []
         self.game_started = False
         self.lock = threading.Lock()
 
-    def exposed_add_connection(self, name, conn):
+    def on_connect(self, conn):
         with self.lock:
-            print('c')
             if self.game_started:
-                print(f"{name} tried to connect after game started")
-                return None
-            if name in self.players.keys():
-                print(f'{name} already used')
-                return False
-            print(f"New connection from {name}")
-            self.players[name] = conn
-            print('d')
+                conn.close()
+                return
+            self.players[conn] = None
+
+    def exposed_login(self, player_name, conn):
+        with self.lock:
+            if player_name not in self.players.values():
+                self.players[conn] = player_name
+                self.notify_all_clients(f"{player_name} has joined the game")
+                return True
+            return False
+
+    def notify_all_clients(self, message):
+        for conn in self.players.keys():
+            try:
+                conn.root.receive_message(message)
+            except:
+                if conn in self.players:
+                    del self.players[conn]
+
+    def start_game(self):
+        with self.lock:
+            self.game_started = True
+            self.notify_all_clients("Game has started!")
             return True
-
-    def exposed_remove_connection(self, name):
-        with self.lock:
-            print('e')
-            del self.players[name]
-            print('f')
-
-    def __str__(self) -> str:
-        with self.lock:
-            print('g')
-            return str(self.players)
 
 server = None
 gs = None
@@ -54,9 +59,7 @@ if __name__ == "__main__":
 
     input("Pressione Enter para começar...")
     print('a')
-    print(gs)
-    print(gs.players)
-    gs.print_players()
+    gs.start_game()
     print('b')
 
     stop_server()
