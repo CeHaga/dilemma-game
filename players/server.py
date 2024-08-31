@@ -1,66 +1,72 @@
+import sys
+sys.path.append('../')
+
 import rpyc
 from rpyc.utils.server import ThreadedServer
-from game import play_turn
 import threading
+from game_enums import *
 
-class GameService(rpyc.Service):
+class MyService(rpyc.Service):
     def __init__(self):
-        self.players = {}
-        self.connections = []
+        self.clients = []
         self.game_started = False
-        self.lock = threading.Lock()
+        self.player_actions = {}
 
     def on_connect(self, conn):
-        with self.lock:
-            if self.game_started:
-                conn.close()
-                return
-            self.players[conn] = None
+        print("Client connected")
 
-    def exposed_login(self, player_name, conn):
-        with self.lock:
-            if player_name not in self.players.values():
-                self.players[conn] = player_name
-                self.notify_all_clients(f"{player_name} has joined the game")
-                return True
-            return False
+    def on_disconnect(self, conn):
+        print("Client disconnected")
+        # TODO: remove client from list
 
-    def notify_all_clients(self, message):
-        for conn in self.players.keys():
-            try:
-                conn.root.receive_message(message)
-            except:
-                if conn in self.players:
-                    del self.players[conn]
+    def exposed_login(self, username, conn, callbacks):
+        if self.game_started:
+            return LoginResult.GAME_STARTED
+        for client in self.clients:
+            if client['username'] == username:
+                return LoginResult.USERNAME_IN_USE
+        self.clients.append({'conn': conn, 'callbacks': callbacks, 'username': username})
+        print(f'Adding client: {username}')
+        return LoginResult.SUCCESS
+    
+    def exposed_betray(self, username, betray):
+        self.player_actions[username] = betray
+        if len(self.player_actions) == len(self.clients):
+            self.start_game()
 
+    def next_turn(self):
+        pass
+    
     def start_game(self):
-        with self.lock:
-            self.game_started = True
-            self.notify_all_clients("Game has started!")
-            return True
+        print('Starting game...')
+        self.game_started = True
+        threads = []
+        for client in self.clients:
+            thread = threading.Thread(target=self._execute_callback, args=(client, 'start_game'))
+            threads.append(thread)
+            thread.start()
+
+    def _execute_callback(self, client, callback_name):
+        try:
+            client['callbacks'][callback_name](self.clients)
+        except Exception as e:
+            print(f"Failed to contact client {client['username']}:\n{e}")
 
 server = None
-gs = None
 
-def run_server(host="localhost", port=12345):
-    global server, gs
-    gs = GameService()
-    server = ThreadedServer(gs, hostname=host, port=port, protocol_config={'allow_public_attrs': True})
-    print(f"Server listening on {host}:{port}")
+def start_server():
+    global server
+    service = MyService()
+    server = ThreadedServer(service, port=12345, protocol_config={"allow_all_attrs": True})
     server.start()
 
-def stop_server():
-    global server
-    server.close()
-
 if __name__ == "__main__":
-    thread = threading.Thread(target=run_server)
-    thread.start()
+    server_thread = threading.Thread(target=start_server)
+    server_thread.start()
 
-    input("Pressione Enter para começar...")
-    print('a')
-    gs.start_game()
-    print('b')
+    input("Press Enter to  start game...")
+    server.service.start_game()
 
-    stop_server()
-    thread.join()
+    input("Press Enter to exit...")
+    server.close()
+    server_thread.join()
