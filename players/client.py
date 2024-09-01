@@ -1,5 +1,6 @@
 import sys
-sys.path.append('../')
+
+sys.path.append("../")
 
 import rpyc
 import threading
@@ -14,9 +15,11 @@ from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from game_enums import *
 
+
 # Define the callback function that will handle messages from the server
 def callback(message):
     print(f"Received callback with message: {message}")
+
 
 # Function to continuously listen for callbacks from the server
 def listen_for_callbacks(conn):
@@ -26,6 +29,7 @@ def listen_for_callbacks(conn):
     except Exception as e:
         print(f"Error while listening for callbacks: {e}")
 
+
 class ClientApp(App):
     def __init__(self, conn, **kwargs):
         super().__init__(**kwargs)
@@ -34,7 +38,8 @@ class ClientApp(App):
         self.is_waiting_start = False
         self.players = []
         self.callbacks = {
-            'start_game': self.start_game,
+            "start_game": self.start_game,
+            "is_alive": self.is_alive,
         }
 
     def build(self):
@@ -44,18 +49,21 @@ class ClientApp(App):
         sm.add_widget(GameScreen(name="game"))
         sm.add_widget(WaitPlayersSelectScreen(name="wait_players_select"))
         return sm
-    
+
     def start_game(self, players):
-        self.players = [p['username'] for p in players]
+        self.players = [p["username"] for p in players]
         Clock.schedule_once(self._change_to_game_screen)
+
+    def is_alive(self):
+        return True
 
     def next_round(self, player_scores):
         print(f"Scores: {player_scores}")
-        self.root.current = 'game'
+        self.root.current = "game"
 
     def _change_to_game_screen(self, dt):
-        if self.root.current == 'wait_game_start':
-            self.root.current = 'game'
+        if self.root.current == "wait_game_start":
+            self.root.current = "game"
 
     def on_stop(self):
         self.conn.close()
@@ -63,12 +71,13 @@ class ClientApp(App):
     @property
     def username(self):
         return self._username
-    
+
     @username.setter
     def username(self, value):
         self._username = value
         self.conn.username = value
         print(self.conn.username)
+
 
 class NameScreen(Screen):
     def __init__(self, **kwargs):
@@ -90,18 +99,28 @@ class NameScreen(Screen):
 
         # Check if the player name is valid
         if len(username) == 0:
-            popup = Popup(title="Please enter a name", size_hint=(None, None), size=(200, 100))
+            popup = Popup(
+                title="Please enter a name", size_hint=(None, None), size=(200, 100)
+            )
             popup.open()
             return
-        
+
         # Check only alphanumeric characters are used
         if not username.isalnum():
-            popup = Popup(title="Please enter only alphanumeric characters", size_hint=(None, None), size=(200, 100))
+            popup = Popup(
+                title="Please enter only alphanumeric characters",
+                size_hint=(None, None),
+                size=(200, 100),
+            )
             popup.open()
             return
-        
+
         if len(username) > 10:
-            popup = Popup(title="Please enter a name shorter than 10 characters", size_hint=(None, None), size=(200, 100))
+            popup = Popup(
+                title="Please enter a name shorter than 10 characters",
+                size_hint=(None, None),
+                size=(200, 100),
+            )
             popup.open()
             return
 
@@ -114,14 +133,15 @@ class NameScreen(Screen):
             app.root.current = "wait_game_start"
         else:
             popup_title = ""
-            
+
             if login_result == LoginResult.GAME_STARTED:
                 popup_title = "Game already started"
             elif login_result == LoginResult.USERNAME_IN_USE:
                 popup_title = "Username already in use"
-                
+
             popup = Popup(title=popup_title, size_hint=(None, None), size=(200, 200))
             popup.open()
+
 
 class WaitGameStartScreen(Screen):
     def __init__(self, **kwargs):
@@ -133,6 +153,7 @@ class WaitGameStartScreen(Screen):
     def on_enter(self):
         app = App.get_running_app()
         app.is_waiting_start = True
+
 
 class GameScreen(Screen):
     def on_enter(self):
@@ -156,6 +177,7 @@ class GameScreen(Screen):
         app = App.get_running_app()
         app.conn.root.betray(app.username, instance.text)
         app.root.current = "wait_players_select"
+
 
 class WaitPlayersSelectScreen(Screen):
     def __init__(self, **kwargs):
