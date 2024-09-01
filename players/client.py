@@ -40,6 +40,7 @@ class ClientApp(App):
         self.callbacks = {
             "start_game": self.start_game,
             "is_alive": self.is_alive,
+            "next_turn": self.next_turn,
         }
 
     def build(self):
@@ -57,12 +58,16 @@ class ClientApp(App):
     def is_alive(self):
         return True
 
-    def next_round(self, player_scores):
+    def next_turn(self, player_scores):
         print(f"Scores: {player_scores}")
-        self.root.current = "game"
+        Clock.schedule_once(self._change_to_next_turn)
 
     def _change_to_game_screen(self, dt):
         if self.root.current == "wait_game_start":
+            self.root.current = "game"
+
+    def _change_to_next_turn(self, dt):
+        if self.root.current == "wait_players_select":
             self.root.current = "game"
 
     def on_stop(self):
@@ -170,12 +175,19 @@ class GameScreen(Screen):
             betray_layout.add_widget(button)
         main_layout.add_widget(betray_layout)
 
-        main_layout.add_widget(Button(text="Cooperate"))
+        cooperate_button = Button(text="Cooperate")
+        cooperate_button.bind(on_press=self.on_cooperate)
+        main_layout.add_widget(cooperate_button)
         self.add_widget(main_layout)
 
     def on_select(self, instance):
         app = App.get_running_app()
         app.conn.root.betray(app.username, instance.text)
+        app.root.current = "wait_players_select"
+
+    def on_cooperate(self, instance):
+        app = App.get_running_app()
+        app.conn.root.betray(app.username, None)
         app.root.current = "wait_players_select"
 
 

@@ -13,18 +13,22 @@ class MyService(rpyc.Service):
         self.clients = []
         self.game_started = False
         self.player_actions = {}
+        self.total_rounds = 10
+        self.current_round = 1
 
     def on_connect(self, conn):
         print("Client connected")
 
     def on_disconnect(self, conn):
         print("Client disconnected")
-
+        new_clients = []
         for client in self.clients:
             try:
                 client["callbacks"]["is_alive"]()
+                new_clients.append(client)
             except Exception as e:
-                self.clients.remove(client)
+                pass
+        self.clients = new_clients
 
     def exposed_login(self, username, conn, callbacks):
         if self.game_started:
@@ -45,6 +49,18 @@ class MyService(rpyc.Service):
 
     def next_turn(self):
         print(f"Player actions: {self.player_actions}")
+        player_scores = {}
+        self.player_actions = {}
+        threads = []
+        for client in self.clients:
+            thread = threading.Thread(
+                target=self._execute_callback,
+                args=(client, "next_turn", [player_scores]),
+            )
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
 
     def start_game(self):
         print("Starting game...")
@@ -52,16 +68,19 @@ class MyService(rpyc.Service):
         threads = []
         for client in self.clients:
             thread = threading.Thread(
-                target=self._execute_callback, args=(client, "start_game")
+                target=self._execute_callback,
+                args=(client, "start_game", [self.clients]),
             )
             threads.append(thread)
             thread.start()
+        for thread in threads:
+            thread.join()
 
-    def _execute_callback(self, client, callback_name):
+    def _execute_callback(self, client, callback_name, parameters=None):
         try:
-            client["callbacks"][callback_name](self.clients)
+            client["callbacks"][callback_name](*parameters)
         except Exception as e:
-            print(f"Failed to contact client {client['username']}:\n{e}")
+            print(f"Failed to contact a client: {e}")
 
 
 server = None
