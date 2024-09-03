@@ -13,49 +13,90 @@ class MyService(rpyc.Service):
         self.clients = []
         self.game_started = False
         self.player_actions = {}
-        self.total_rounds = 10
+        self.total_rounds = 1
         self.current_round = 1
-
-    def on_connect(self, conn):
-        print("Client connected")
+        self.total_players = 0
+        self.lock = threading.Lock()
+        self.player_scores = {}
 
     def on_disconnect(self, conn):
         print("Client disconnected")
-        new_clients = []
-        for client in self.clients:
-            try:
-                client["callbacks"]["is_alive"]()
-                new_clients.append(client)
-            except Exception as e:
-                pass
-        self.clients = new_clients
+        with self.lock:
+            new_clients = []
+            for client in self.clients:
+                try:
+                    client["callbacks"]["is_alive"]()
+                    new_clients.append(client)
+                except Exception as e:
+                    pass
+            self.clients = new_clients
 
     def exposed_login(self, username, conn, callbacks):
-        if self.game_started:
-            return LoginResult.GAME_STARTED
-        for client in self.clients:
-            if client["username"] == username:
-                return LoginResult.USERNAME_IN_USE
-        self.clients.append(
-            {"conn": conn, "callbacks": callbacks, "username": username}
-        )
-        print(f"Adding client: {username}")
-        return LoginResult.SUCCESS
+        with self.lock:
+            if self.game_started:
+                return LoginResult.GAME_STARTED
+            for client in self.clients:
+                if client["username"] == username:
+                    return LoginResult.USERNAME_IN_USE
+            self.clients.append(
+                {
+                    "conn": conn,
+                    "callbacks": callbacks,
+                    "username": username,
+                }
+            )
+            self.total_players += 1
+            print(f"Adding client: {username}")
+            return LoginResult.SUCCESS
+
+    def exposed_relogin(self, username, conn, callbacks):
+        with self.lock:
+            self.clients.append(
+                {
+                    "conn": conn,
+                    "callbacks": callbacks,
+                    "username": username,
+                }
+            )
+            print(f"Client {username} reconnected")
+            return self.player_scores
 
     def exposed_betray(self, username, betray):
         self.player_actions[username] = betray
-        if len(self.player_actions) == len(self.clients):
+        if len(self.player_actions) == self.total_players:
             self.next_turn()
 
     def next_turn(self):
-        print(f"Player actions: {self.player_actions}")
-        player_scores = {}
+        last_round = False
+        if self.current_round == self.total_rounds:
+            last_round = True
+
+        self.turn_log = {
+            "scores": {"a": 1, "b": 2, "c": 3},
+            "round": self.current_round,
+            "actions": self.player_actions,
+        }
         self.player_actions = {}
         threads = []
         for client in self.clients:
             thread = threading.Thread(
                 target=self._execute_callback,
-                args=(client, "next_turn", [player_scores]),
+                args=(client, "next_turn", [self.turn_log, last_round]),
+            )
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.current_round += 1
+
+    def end_game(self):
+        print("Ending game...")
+        self.game_started = False
+        threads = []
+        for client in self.clients:
+            thread = threading.Thread(
+                target=self._execute_callback,
+                args=(client, "end_game", []),
             )
             threads.append(thread)
             thread.start()
@@ -73,6 +114,7 @@ class MyService(rpyc.Service):
             )
             threads.append(thread)
             thread.start()
+            client["screen"] = GameState.PLAYING
         for thread in threads:
             thread.join()
 
