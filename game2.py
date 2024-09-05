@@ -36,10 +36,11 @@ def play_turn(player_actions, total_points=None, resources=2):
             print(f"System collapse: Player {player} was betrayed by {len(betrayers)} players.")
             break  #Collapse detected, no need to check further
 
-    #If system collapse occurred, penalize all players by halving their resources
+    #If system collapse occurred, penalize all players by halving their resources and set turn_points to 0
     if collapse_occurred:
         for player in total_points:
-            total_points[player] = max(0, total_points[player] // 2)  #Halve everyone's resources
+            total_points[player] = max(0, total_points[player] // 2)  # Halve everyone's resources
+            turn_points[player] = 0  # No one gets the default +2 resources this round
 
     #Calculate the points for each player based on betrayals and cooperation
     for player, action in player_actions.items():
