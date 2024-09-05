@@ -2,75 +2,59 @@ import random
 from collections import defaultdict
 
 def play_turn(player_actions, total_points=None, resources=2):
+    """
+    Process a single turn of the game. Each player either betrays or cooperates based on their action.
+    Handle system collapse logic if a player is betrayed by more than 2 other players.
+    
+    Args:
+    - player_actions: A dictionary of player actions (betrayal or cooperation).
+    - total_points: A dictionary of players' current total resources.
+    - resources: The default resources given to each player per round.
+
+    Returns:
+    - result: The results of the turn, including actions and resources.
+    - total_points: Updated total points for each player.
+    - betrayals: A dictionary tracking who betrayed whom.
+    - collapse_occurred: A boolean indicating if a system collapse happened.
+    """
     if total_points is None:
         total_points = {player: 0 for player in player_actions.keys()}
-    turn_points = {player: 2 for player in player_actions.keys()}
-    lost_players = set()
-    betrayals = defaultdict(int)  # Track how many times each player is betrayed
+    
+    turn_points = {player: resources for player in player_actions.keys()}
+    betrayals = defaultdict(list)  #Track who betrayed whom
+    collapse_occurred = False  #Track if a collapse occurred
 
-    # Track betrayals
+    #Track betrayals
     for player, action in player_actions.items():
         if action is not None:
-            betrayals[action] += 1  # Track how many times each player is betrayed
+            betrayals[action].append(player)  #Track which player was betrayed by whom
 
-    # Check for random event due to repeated betrayal
-    for player, times_betrayed in betrayals.items():
-        if times_betrayed > 2:
-            # Random event: Choose one player involved in the betrayal
-            involved_players = [player] + [p for p, a in player_actions.items() if a == player]
-            chosen_player = random.choice(involved_players)
+    #Detect system collapse (if a player is betrayed by more than 2 others)
+    for player, betrayers in betrayals.items():
+        if len(betrayers) > 2:  #Collapse condition: more than 2 betrayals
+            collapse_occurred = True
+            print(f"System collapse: Player {player} was betrayed by {len(betrayers)} players.")
+            break  #Collapse detected, no need to check further
 
-            # Randomly apply one of the two effects
-            if random.choice([True, False]):
-                # Effect 1: Chosen player loses half of all accumulated resources
-                total_points[chosen_player] = max(0, total_points[chosen_player] // 2)
-                print(f"Player {chosen_player} loses half of their accumulated resources!")
-            else:
-                # Effect 2: Chosen player gains all the resources the others involved would have gained
-                gained_resources = sum(turn_points[p] for p in involved_players) #if p != chosen_player)
-                total_points[chosen_player] += gained_resources
-                for p in involved_players:
-                    if p != chosen_player:
-                        turn_points[p] = 0  # Others get nothing
-                print(f"Player {chosen_player} gains {gained_resources} resources from others!")
-            
-            # No need to process further after the random event is triggered
-            break
+    #If system collapse occurred, penalize all players by halving their resources
+    if collapse_occurred:
+        for player in total_points:
+            total_points[player] = max(0, total_points[player] // 2)  #Halve everyone's resources
 
-    # Continue with the standard point calculation if no random event
+    #Calculate the points for each player based on betrayals and cooperation
     for player, action in player_actions.items():
-        # If player is lost, skip
-        if player in lost_players:
-            continue
+        if action is not None:  #Betrayal case
+            turn_points[player] += 1  #Gain a point for betraying
+            turn_points[action] -= 1  #The betrayed player loses a point
 
-        # If cooperates, skip
-        if action is None:
-            continue
+    #Update total points based on turn points
+    for player in turn_points:
+        total_points[player] += turn_points[player]
 
-        # If both players betray each other, add to lost players
-        if player_actions.get(action) == player:
-            lost_players.add(player)
-            lost_players.add(action)
-            continue
-
-        # If player betrays and other doesn't, steal point
-        turn_points[player] += 1
-        turn_points[action] -= 1
-
-    # Remove points from lost players
-    for player in lost_players:
-        turn_points[player] = -1
-
-    # Add points to total points
-    total_points = {
-        player: total_points[player] + turn_points[player]
+    #Return the result, updated total points, betrayals, and whether a collapse occurred
+    result = {
+        player: (player_actions[player], turn_points[player], total_points[player])
         for player in player_actions.keys()
     }
-
-    result = {
-        player: (action, turn_points[player], total_points[player])
-        for player, action in player_actions.items()
-    }
-
-    return result, total_points
-
+    
+    return result, total_points, betrayals, collapse_occurred
