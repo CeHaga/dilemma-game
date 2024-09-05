@@ -48,11 +48,11 @@ class Evaluation:
         betrayal_percentage_best = (self.betrayals[best_player] / self.n_rounds) * 100
         betrayal_percentage_worst = (self.betrayals[worst_player] / self.n_rounds) * 100
 
-        # Custom error metric
-        expected_score = 20  # Assuming expected score when all cooperate is 20
+        #Custom error metric
+        expected_score = 2 * n_rounds #The perfect score is 2 times the number of scores, since the players receive 2 resources per round
         error_metric = {player_id: (expected_score - final_resources[player_id]) / 2 for player_id in range(self.game_instance.n_players)}
 
-        # Display results
+        #Display results
         print(f"Best Player: {best_player}")
         print(f"Worst Player: {worst_player}")
         print(f"Betrayal percentage of best player: {betrayal_percentage_best}%")
@@ -66,12 +66,12 @@ class Evaluation:
 if __name__ == "__main__":
     n_players = 5
     n_resources = 2
-    n_rounds = 100  # Adjust based on your simulation needs
+    n_rounds = 1000  
 
-    # Initial betrayal probabilities for each player
-    betray_probabilities = [0.5, 0.5, 0.5, 0.5, 1.0]
+    #Initial betrayal probabilities for each player
+    betray_probabilities = [0.2, 0.1, 0.5, 0.0, 1.0]
 
-    # Initialize and play the game
+    #Initialize and play the game
     game_instance = Game(n_players, n_resources, betray_probabilities)
     evaluator = Evaluation(game_instance, n_rounds)
     evaluator.evaluate()
