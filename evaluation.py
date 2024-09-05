@@ -11,6 +11,13 @@ class Evaluation:
         self.collapse_rounds = []
         self.pre_collapse_cooperation = None
         self.post_collapse_cooperation = None
+        self.mutual_cooperation = 0
+        self.reciprocal_cooperation = {player_id: 0 for player_id in range(game_instance.n_players)}
+        self.collaboration_index = 0
+        self.cooperation_stability = []
+        self.cooperation_streaks = {player_id: 0 for player_id in range(game_instance.n_players)}  # For Cooperation Intensity
+        self.influence_on_group = {player_id: 0 for player_id in range(game_instance.n_players)}  # For Influence on Group Behavior
+        self.total_betrayals = 0  # To track trust decay rate
 
     def evaluate(self):
         """Main function to evaluate the game's cooperation, betrayal, and collapse metrics over the rounds."""
@@ -19,7 +26,7 @@ class Evaluation:
             self.game_instance.play_round(round_num + 1)
 
             # Track the actions (betrayals or cooperations) taken by players
-            actions = {str(player.id): player.history for player in self.game_instance.players}
+            actions = {int(player.id): player.history for player in self.game_instance.players}  # Convert player.id to integer
 
             betrayals_this_round = set()
             player_betrayed_count = {player_id: 0 for player_id in range(self.game_instance.n_players)}
@@ -30,17 +37,33 @@ class Evaluation:
                     # Check the last action in the history
                     last_action = history[list(history.keys())[-1]]
                     if last_action[-1] == 1:  # If the last action is a betrayal (1)
-                        self.betrayals[int(player_id)] += 1
-                        betrayals_this_round.add(int(player_id))
+                        self.betrayals[player_id] += 1
+                        betrayals_this_round.add(player_id)
+                        self.total_betrayals += 1
 
                         # Track who was betrayed
-                        betrayed_player = list(history.keys())[-1]  # The player they betrayed
-                        player_betrayed_count[int(betrayed_player)] += 1
+                        betrayed_player = int(list(history.keys())[-1])  # The player they betrayed, converted to integer
+                        player_betrayed_count[betrayed_player] += 1
+                        self.influence_on_group[player_id] += 1  # Track influence on group behavior
 
             # Count cooperation as no betrayal from the player in this round
             for player_id in range(self.game_instance.n_players):
                 if player_id not in betrayals_this_round:
                     self.cooperations[player_id] += 1
+                    self.cooperation_streaks[player_id] += 1  # Track streak of cooperation
+                else:
+                    self.cooperation_streaks[player_id] = 0  # Reset streak if they betrayed
+
+            # Mutual cooperation: check if all players cooperated in the round
+            if len(betrayals_this_round) == 0:
+                self.mutual_cooperation += 1
+
+            # Reciprocal cooperation: track if players reciprocate cooperation
+            for player_id, history in actions.items():
+                if history:
+                    previous_player_id = int(list(history.keys())[-1])
+                    if player_id not in betrayals_this_round and previous_player_id not in betrayals_this_round:
+                        self.reciprocal_cooperation[player_id] += 1
 
             # Check for collapses in this round (if a player was betrayed more than twice)
             collapse_occurred = False
@@ -89,9 +112,25 @@ class Evaluation:
         expected_score = 2 * self.n_rounds  # The perfect score is 2 times the number of rounds
         error_metric = {player_id: (expected_score - final_resources[player_id]) / 2 for player_id in range(self.game_instance.n_players)}
 
+        # Calculate collaboration index
+        self.collaboration_index = self.calculate_collaboration_index()
+
+        # Calculate cooperation intensity (continuous streaks of cooperation)
+        cooperation_intensity = sum(self.cooperation_streaks.values()) / self.n_rounds
+
+        # Calculate reciprocity index
+        reciprocity_index = sum(self.reciprocal_cooperation.values()) / (self.n_rounds * self.game_instance.n_players)
+
+        # Calculate influence on group behavior
+        influence_index = sum(self.influence_on_group.values()) / (self.n_rounds * self.game_instance.n_players)
+
+        # Trust decay rate: total betrayals / total interactions
+        trust_decay_rate = self.total_betrayals / (self.n_rounds * self.game_instance.n_players)
+
         # Display results
         self.display_results(best_player, worst_player, betrayal_percentage_best, betrayal_percentage_worst, overall_cooperation_rate, 
-                             overall_betrayal_rate, individual_cooperation_rates, individual_betrayal_rates, error_metric, self.collapses)
+                             overall_betrayal_rate, individual_cooperation_rates, individual_betrayal_rates, error_metric, self.collapses, 
+                             cooperation_intensity, reciprocity_index, influence_index, trust_decay_rate)
 
     def calculate_cooperation_rate(self, start_round, end_round):
         """Calculates the cooperation rate between the given rounds (start_round to end_round)."""
@@ -100,9 +139,16 @@ class Evaluation:
             total_cooperation += self.cooperations[player_id]
         return (total_cooperation / ((end_round - start_round) * self.game_instance.n_players)) * 100
 
+    def calculate_collaboration_index(self):
+        """Calculates the collaboration index based on direct and indirect cooperation."""
+        total_cooperations = sum(self.cooperations.values())
+        total_interactions = self.n_rounds * self.game_instance.n_players
+        return (total_cooperations / total_interactions) * 100
+
     def display_results(self, best_player, worst_player, betrayal_percentage_best, betrayal_percentage_worst, 
                         overall_cooperation_rate, overall_betrayal_rate, individual_cooperation_rates, 
-                        individual_betrayal_rates, error_metric, collapses):
+                        individual_betrayal_rates, error_metric, collapses, 
+                        cooperation_intensity, reciprocity_index, influence_index, trust_decay_rate):
         """Display the calculated metrics."""
         print(f"Best Player: {best_player}")
         print(f"Worst Player: {worst_player}")
@@ -116,6 +162,11 @@ class Evaluation:
         print(f"Total collapses: {sum(collapses.values())}")
         print(f"Pre-collapse cooperation rate: {self.pre_collapse_cooperation}%")
         print(f"Post-collapse cooperation rate: {self.post_collapse_cooperation}%")
+        print(f"Collaboration Index: {self.collaboration_index}%")
+        print(f"Cooperation Intensity: {cooperation_intensity}")
+        print(f"Reciprocity Index: {reciprocity_index}")
+        print(f"Influence on Group Behavior: {influence_index}")
+        print(f"Trust Decay Rate: {trust_decay_rate}")
 
 if __name__ == "__main__":
     n_players = 5
