@@ -1,98 +1,109 @@
 from simulation_game import Game
 
-#Define the Evaluation class to handle game evaluations
 class Evaluation:
-    #Constructor for the Evaluation class
-    #Initializes the Evaluation object with the game instance and number of rounds
     def __init__(self, game_instance, n_rounds):
-        #Save the game instance object that will be evaluated
+        """Initializes the Evaluation class, sets up game instance, rounds, and tracking for betrayals, cooperation, and collapses."""
         self.game_instance = game_instance
-        
-        #Save the number of rounds for the evaluation process
         self.n_rounds = n_rounds
-
-        #Initialize a dictionary to track the number of betrayals for each player, starting at 0
         self.betrayals = {player_id: 0 for player_id in range(game_instance.n_players)}
-
-        #Initialize a dictionary to track the number of cooperations for each player, starting at 0
         self.cooperations = {player_id: 0 for player_id in range(game_instance.n_players)}
+        self.collapses = {player_id: 0 for player_id in range(game_instance.n_players)}
+        self.collapse_rounds = []
+        self.pre_collapse_cooperation = None
+        self.post_collapse_cooperation = None
 
-    #Main evaluation function that runs through the simulation and computes various metrics
     def evaluate(self):
-        #Loop through each round of the game
+        """Main function to evaluate the game's cooperation, betrayal, and collapse metrics over the rounds."""
         for round_num in range(self.n_rounds):
-            #Play a round in the game, where players make decisions (cooperate/betray)
+            # Play a round and get actions
             self.game_instance.play_round(round_num + 1)
 
-            #Collect the actions taken by players during the round
-            #'actions' stores each player's interaction history (who they betrayed/cooperated with)
+            # Track the actions (betrayals or cooperations) taken by players
             actions = {str(player.id): player.history for player in self.game_instance.players}
 
-            #A set to track players who betrayed in the current round
             betrayals_this_round = set()
+            player_betrayed_count = {player_id: 0 for player_id in range(self.game_instance.n_players)}
 
-            #Loop through each player's actions to log betrayals
+            # Log betrayal actions per round
             for player_id, history in actions.items():
-                #Check if the player has a history (i.e., actions taken in the game)
                 if history:
-                    #Get the last action of the player to determine their most recent behavior
+                    # Check the last action in the history
                     last_action = history[list(history.keys())[-1]]
-                    
-                    #If the last action was a betrayal (encoded as 1), log the betrayal
-                    if last_action[-1] == 1:
-                        #Increment the betrayal count for the player
+                    if last_action[-1] == 1:  # If the last action is a betrayal (1)
                         self.betrayals[int(player_id)] += 1
-                        
-                        #Add the player to the set of players who betrayed in this round
                         betrayals_this_round.add(int(player_id))
 
-            #Loop through all players to log cooperation (i.e., no betrayal during the round)
+                        # Track who was betrayed
+                        betrayed_player = list(history.keys())[-1]  # The player they betrayed
+                        player_betrayed_count[int(betrayed_player)] += 1
+
+            # Count cooperation as no betrayal from the player in this round
             for player_id in range(self.game_instance.n_players):
-                #If a player did not betray in this round, count it as cooperation
                 if player_id not in betrayals_this_round:
                     self.cooperations[player_id] += 1
 
-        #Calculate the overall cooperation rate
-        #This is the total number of cooperative actions divided by the total possible actions, multiplied by 100
-        overall_cooperation_rate = (sum(self.cooperations.values()) / (self.n_rounds * self.game_instance.n_players)) * 100
+            # Check for collapses in this round (if a player was betrayed more than twice)
+            collapse_occurred = False
+            for player_id, betray_count in player_betrayed_count.items():
+                if betray_count > 2:  # Collapse if a player is betrayed more than twice
+                    self.collapses[player_id] += 1
+                    collapse_occurred = True
+                    self.collapse_rounds.append(round_num)
 
-        # Calculate the overall betrayal rate as the complement of the cooperation rate
+            # Measure pre-collapse cooperation rate
+            if collapse_occurred and not self.pre_collapse_cooperation:
+                self.pre_collapse_cooperation = self.calculate_cooperation_rate(0, round_num)
+
+        # If no collapses occurred, treat the entire game as pre-collapse behavior
+        if not self.pre_collapse_cooperation:
+            self.pre_collapse_cooperation = self.calculate_cooperation_rate(0, self.n_rounds)
+
+        # If collapses occurred, measure post-collapse cooperation rate
+        if self.collapse_rounds:
+            last_collapse_round = self.collapse_rounds[-1]
+            self.post_collapse_cooperation = self.calculate_cooperation_rate(last_collapse_round, self.n_rounds)
+        else:
+            # If no collapses occurred, the post-collapse rate equals the overall cooperation rate
+            self.post_collapse_cooperation = self.pre_collapse_cooperation
+
+        # Calculate overall cooperation and betrayal rates
+        overall_cooperation_rate = (sum(self.cooperations.values()) / (self.n_rounds * self.game_instance.n_players)) * 100
         overall_betrayal_rate = 100 - overall_cooperation_rate
 
-        #Calculate individual cooperation rates for each player
-        #This is the number of cooperative actions by each player divided by the number of rounds, multiplied by 100
+        # Individual cooperation rates
         individual_cooperation_rates = {player_id: (self.cooperations[player_id] / self.n_rounds) * 100 for player_id in range(self.game_instance.n_players)}
         
-        #Calculate individual betrayal rates for each player
-        #This is the number of betrayals by each player divided by the number of rounds, multiplied by 100
+        # Individual betrayal rates
         individual_betrayal_rates = {player_id: (self.betrayals[player_id] / self.n_rounds) * 100 for player_id in range(self.game_instance.n_players)}
 
-        #Get the final resource totals for each player at the end of the game
+        # Find the best and worst players based on resources
         final_resources = [player.total_resources for player in self.game_instance.players]
-
-        #Identify the best player (player with the highest resources)
         best_player = final_resources.index(max(final_resources))
-
-        #Identify the worst player (player with the lowest resources)
         worst_player = final_resources.index(min(final_resources))
 
-        #Calculate the betrayal percentage for the best player
-        #This is the number of betrayals by the best player divided by the number of rounds, multiplied by 100
+        # Betrayal percentage for best and worst players
         betrayal_percentage_best = (self.betrayals[best_player] / self.n_rounds) * 100
-
-        #Calculate the betrayal percentage for the worst player
-        #This is the number of betrayals by the worst player divided by the number of rounds, multiplied by 100
         betrayal_percentage_worst = (self.betrayals[worst_player] / self.n_rounds) * 100
 
-        #Calculate the expected score assuming everyone cooperated for all rounds
-        #Players would receive 2 resources per round, so the expected score is 2 times the number of rounds
-        expected_score = 2 * self.n_rounds
-
-        #Calculate a custom error metric for each player
-        #This metric is the difference between the expected score and the player's actual score, divided by 2
+        # Custom error metric
+        expected_score = 2 * self.n_rounds  # The perfect score is 2 times the number of rounds
         error_metric = {player_id: (expected_score - final_resources[player_id]) / 2 for player_id in range(self.game_instance.n_players)}
 
-        #Print the results of the evaluation
+        # Display results
+        self.display_results(best_player, worst_player, betrayal_percentage_best, betrayal_percentage_worst, overall_cooperation_rate, 
+                             overall_betrayal_rate, individual_cooperation_rates, individual_betrayal_rates, error_metric, self.collapses)
+
+    def calculate_cooperation_rate(self, start_round, end_round):
+        """Calculates the cooperation rate between the given rounds (start_round to end_round)."""
+        total_cooperation = 0
+        for player_id in range(self.game_instance.n_players):
+            total_cooperation += self.cooperations[player_id]
+        return (total_cooperation / ((end_round - start_round) * self.game_instance.n_players)) * 100
+
+    def display_results(self, best_player, worst_player, betrayal_percentage_best, betrayal_percentage_worst, 
+                        overall_cooperation_rate, overall_betrayal_rate, individual_cooperation_rates, 
+                        individual_betrayal_rates, error_metric, collapses):
+        """Display the calculated metrics."""
         print(f"Best Player: {best_player}")
         print(f"Worst Player: {worst_player}")
         print(f"Betrayal percentage of best player: {betrayal_percentage_best}%")
@@ -102,26 +113,19 @@ class Evaluation:
         print(f"Overall betrayal rate: {overall_betrayal_rate}%")
         print(f"Individual cooperation rates: {individual_cooperation_rates}")
         print(f"Individual betrayal rates: {individual_betrayal_rates}")
+        print(f"Total collapses: {sum(collapses.values())}")
+        print(f"Pre-collapse cooperation rate: {self.pre_collapse_cooperation}%")
+        print(f"Post-collapse cooperation rate: {self.post_collapse_cooperation}%")
 
-#Main execution block of the program
 if __name__ == "__main__":
-    #Set the number of players in the game
     n_players = 5
-    
-    #Set the initial resources for each player
     n_resources = 2
-    
-    #Set the number of rounds to be played in the game
     n_rounds = 1000  
 
-    #Set the initial betrayal probabilities for each player
+    # Initial betrayal probabilities for each player
     betray_probabilities = [0.2, 0.1, 0.5, 0.0, 1.0]
 
-    #Initialize a new game instance with the given number of players, resources, and betrayal probabilities
+    # Initialize and play the game
     game_instance = Game(n_players, n_resources, betray_probabilities)
-
-    #Create an instance of the Evaluation class with the game instance and number of rounds
     evaluator = Evaluation(game_instance, n_rounds)
-
-    #Run the evaluation and display the results
     evaluator.evaluate()
