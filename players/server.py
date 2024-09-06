@@ -34,6 +34,10 @@ class MyService(rpyc.Service):
     def exposed_login(self, username, conn, callbacks):
         with self.lock:
             if self.game_started:
+                for client in self.clients:
+                    if client["username"] == username:
+                        self.exposed_relogin(username, conn, callbacks)
+                        return LoginResult.SUCCESS
                 return LoginResult.GAME_STARTED
             for client in self.clients:
                 if client["username"] == username:

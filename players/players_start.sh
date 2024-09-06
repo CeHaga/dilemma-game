@@ -10,7 +10,7 @@ pids=()
 
 for ((i=1; i<=$num_players; i++))
 do
-    python3 client.py &
+    python3 main.py &
     pids+=($!)
 done
 

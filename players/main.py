@@ -13,6 +13,7 @@ from kivy.uix.label import Label
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
+from kivy.logger import Logger
 from game_enums import *
 
 
@@ -28,13 +29,14 @@ def listen_for_callbacks(conn):
             conn.serve(0.1)  # Serve requests with a timeout of 0.1 seconds
     except Exception as e:
         print(f"Error while listening for callbacks: {e}")
+        Logger.exception(e)
 
 
 class ClientApp(App):
-    def __init__(self, conn, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.conn = conn
-        self.username = ""
+        self._username = None
+        self.ip = None
         self.is_waiting_start = False
         self.players = []
         self.callbacks = {
@@ -102,23 +104,37 @@ class ClientApp(App):
 
     def attempt_reconnect(self, dt):
         try:
-            self.conn = rpyc.connect("localhost", 12345)
-            self.conn.username = self.username
-            self.conn.callbacks = self.callbacks
-            scores = self.conn.root.relogin(self.username, self.conn, self.callbacks)
-            try:
-                Clock.schedule_interval(self.check_connection, 1)
-                print(scores)
-                self.scores = scores
-                self.root.current = self.last_screen
-            except Exception as e:
-                print("AAAAAAAAAAAAAAAAAAAAAAAAAA")
-                print(e)
-                self.root.current = self.last_screen
-        except:
-            pass
+            print(f"Connecting to IP {self.ip}")
+            self.conn = rpyc.connect(self.ip, 12345)
+        except Exception as e:
+            Logger.exception(e)
+            self.root.current = "name"
+            return
 
-    def login(self, username):
+        self.conn.username = self.username
+        self.conn.callbacks = self.callbacks
+
+        scores = self.conn.root.relogin(self.username, self.conn, self.callbacks)
+
+        Clock.schedule_interval(self.check_connection, 1)
+        self.scores = scores
+        self.root.current = self.last_screen
+
+    def login(self, username, ip):
+        try:
+            self.conn = rpyc.connect(ip, 12345, config={"allow_all_attrs": True})
+        except Exception as e:
+            Logger.exception(e)
+            return LoginResult.WRONG_IP
+        self.ip = ip
+
+        # Start a thread to handle incoming callbacks
+        callback_thread = threading.Thread(
+            target=listen_for_callbacks, args=(self.conn,)
+        )
+        callback_thread.daemon = True
+        callback_thread.start()
+
         result = self.conn.root.login(username, self.conn, self.callbacks)
         if result != LoginResult.SUCCESS:
             return result
@@ -141,7 +157,6 @@ class ClientApp(App):
     def username(self, value):
         self._username = value
         self.conn.username = value
-        print(self.conn.username)
 
     def disconnect_button(self):
         button = Button(text="Disconnect")
@@ -153,15 +168,27 @@ class NameScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation="vertical")
-        self.name_input = TextInput(multiline=False)
+
+        app = App.get_running_app()
+
+        self.name_input = TextInput(multiline=False, hint_text="Enter your name")
+
+        self.ip_input = TextInput(multiline=False, hint_text="Enter server IP")
 
         submit_button = Button(text="Submit")
         submit_button.bind(on_press=self.submit_name)
 
-        layout.add_widget(Label(text="Enter your name:"))
         layout.add_widget(self.name_input)
+        layout.add_widget(self.ip_input)
         layout.add_widget(submit_button)
         self.add_widget(layout)
+
+    def on_enter(self):
+        app = App.get_running_app()
+        if app.username:
+            self.name_input.text = app.username
+        if app.ip:
+            self.ip_input.text = app.ip
 
     def submit_name(self, instance):
         app = App.get_running_app()
@@ -194,21 +221,24 @@ class NameScreen(Screen):
             popup.open()
             return
 
-        login_result = app.login(username)
+        login_result = app.login(username, self.ip_input.text)
 
         if login_result == LoginResult.SUCCESS:
             app.username = username
             app.root.current = "wait_game_start"
-        else:
-            popup_title = ""
+            return
 
-            if login_result == LoginResult.GAME_STARTED:
-                popup_title = "Game already started"
-            elif login_result == LoginResult.USERNAME_IN_USE:
-                popup_title = "Username already in use"
+        popup_title = ""
 
-            popup = Popup(title=popup_title, size_hint=(None, None), size=(200, 200))
-            popup.open()
+        if login_result == LoginResult.GAME_STARTED:
+            popup_title = "Game already started"
+        elif login_result == LoginResult.USERNAME_IN_USE:
+            popup_title = "Username already in use"
+        elif login_result == LoginResult.WRONG_IP:
+            popup_title = "Wrong IP"
+
+        popup = Popup(title=popup_title, size_hint=(None, None), size=(200, 200))
+        popup.open()
 
 
 class WaitGameStartScreen(Screen):
@@ -333,13 +363,5 @@ class ReconnectionScreen(Screen):
 
 
 if __name__ == "__main__":
-    # Establish connection to the server
-    conn = rpyc.connect("localhost", 12345, config={"allow_all_attrs": True})
-
-    # Start a thread to handle incoming callbacks
-    callback_thread = threading.Thread(target=listen_for_callbacks, args=(conn,))
-    callback_thread.daemon = True  # The thread will close when the main program exits
-    callback_thread.start()
-
     # Start the Kivy app
-    ClientApp(conn).run()
+    ClientApp().run()
