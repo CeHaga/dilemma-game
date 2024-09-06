@@ -1,7 +1,18 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 plt.style.use('classic')
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
+
+def set_common_style(ax, title, xlabel, ylabel):
+    ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+    ax.set_xlabel(xlabel, fontsize=14, labelpad=10)
+    ax.set_ylabel(ylabel, fontsize=14, labelpad=10)
+    ax.tick_params(axis='both', which='major', labelsize=12)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
 def generate_plots(metrics, n_rounds):
     plots = {}
@@ -21,149 +32,113 @@ def generate_plots(metrics, n_rounds):
     return plots
 
 def plot_overall_cooperation(cooperation_rates, n_rounds):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(range(1, n_rounds + 1), cooperation_rates, color='#1f77b4', linewidth=2)
-    ax.set_xlabel('Round', fontsize=12)
-    ax.set_ylabel('Cooperation Rate (%)', fontsize=12)
-    ax.set_title('Overall Cooperation Rate Over Time', fontsize=14, fontweight='bold')
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.plot(range(1, n_rounds + 1), cooperation_rates, color='#1f77b4', linewidth=2.5)
+    set_common_style(ax, 'Overall Cooperation Rate Over Time', 'Round Number', 'Cooperation Rate (%)')
     ax.set_xlim(1, n_rounds)
     ax.set_ylim(0, 100)
-    ax.tick_params(axis='both', which='major', labelsize=10)
-    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.fill_between(range(1, n_rounds + 1), cooperation_rates, alpha=0.3)
     plt.tight_layout()
     plt.show()
     return fig
 
 def plot_overall_betrayal(betrayal_rates, n_rounds):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(range(1, n_rounds + 1), betrayal_rates, color='red', linewidth=2)
-    ax.set_xlabel('Round', fontsize=12)
-    ax.set_ylabel('Betrayal Rate (%)', fontsize=12)
-    ax.set_title('Overall Betrayal Rate Over Time', fontsize=14, fontweight='bold')
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.plot(range(1, n_rounds + 1), betrayal_rates, color='#d62728', linewidth=2.5)
+    set_common_style(ax, 'Overall Betrayal Rate Over Time', 'Round Number', 'Betrayal Rate (%)')
     ax.set_xlim(1, n_rounds)
     ax.set_ylim(0, 100)
-    ax.tick_params(axis='both', which='major', labelsize=10)
-    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.fill_between(range(1, n_rounds + 1), betrayal_rates, alpha=0.3, color='#d62728')
     plt.tight_layout()
     plt.show()
     return fig
 
 def plot_cooperation_betrayal_per_player(cooperation_rates, betrayal_rates):
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
     
-    players = list(cooperation_rates.keys())
+    players = sorted(cooperation_rates.keys(), key=lambda x: int(x))
     cooperation_values = [cooperation_rates[player] for player in players]
     betrayal_values = [betrayal_rates[player] for player in players]
     
-    # Cooperation Rate plot
-    ax[0].bar(players, cooperation_values, color='green', label='Cooperation Rate')
-    for i, v in enumerate(cooperation_values):
-        ax[0].text(i, v + 1, f'{v}', ha='center')
-    ax[0].set_xlabel('Players')
-    ax[0].set_ylabel('Count')
-    ax[0].set_title('Cooperation Count Per Player')
-    ax[0].set_ylim(0, max(cooperation_values) * 1.1)
+    # Cooperation plot
+    sns.barplot(x=players, y=cooperation_values, ax=ax1, color='#2ca02c', order=players)
+    set_common_style(ax1, 'Cooperation Count Per Player', 'Player ID', 'Cooperation Count')
+    ax1.set_ylim(0, max(cooperation_values) * 1.1)
     
-    # Betrayal Rate plot
-    ax[1].bar(players, betrayal_values, color='red', label='Betrayal Rate')
-    for i, v in enumerate(betrayal_values):
-        ax[1].text(i, v + 1, f'{v}', ha='center')
-    ax[1].set_xlabel('Players')
-    ax[1].set_ylabel('Count')
-    ax[1].set_title('Betrayal Count Per Player')
-    ax[1].set_ylim(0, max(betrayal_values) * 1.1)
+    # Betrayal plot
+    sns.barplot(x=players, y=betrayal_values, ax=ax2, color='#d62728', order=players)
+    set_common_style(ax2, 'Betrayal Count Per Player', 'Player ID', 'Betrayal Count')
+    ax2.set_ylim(0, max(betrayal_values) * 1.1)
+    
+    for ax in [ax1, ax2]:
+        for i, v in enumerate(ax.containers[0]):
+            ax.text(v.get_x() + v.get_width()/2, v.get_height(), f'{v.get_height():.0f}', 
+                    ha='center', va='bottom', fontsize=10)
     
     plt.tight_layout()
     plt.show()
     return fig
 
 def plot_best_vs_worst_comparison(best_player, worst_player, best_player_data, worst_player_data):
-    print("Debug: Entering plot_best_vs_worst_comparison")
-    print(f"Debug: Best player: {best_player}, Worst player: {worst_player}")
-    print(f"Debug: Best player data: {best_player_data}")
-    print(f"Debug: Worst player data: {worst_player_data}")
-
-    resources = [best_player_data['resources'], worst_player_data['resources']]
-    cooperation_rate = [best_player_data['cooperation_rate'], worst_player_data['cooperation_rate']]
-    betrayal_rate = [best_player_data['betrayal_rate'], worst_player_data['betrayal_rate']]
-
-    print(f"Debug: Resources: {resources}")
-    print(f"Debug: Cooperation rates: {cooperation_rate}")
-    print(f"Debug: Betrayal rates: {betrayal_rate}")
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-
-    # Plot resources
-    index = np.arange(2)
-    bar_width = 0.35
-    bars1 = ax1.bar(index, resources, bar_width, color=['green', 'orange'])
-    ax1.set_xlabel('Players')
-    ax1.set_ylabel('Total Resources')
-    ax1.set_title('Best vs Worst Player (Resources)')
-    ax1.set_xticks(index)
-    ax1.set_xticklabels([f'Best Player {best_player}', f'Worst Player {worst_player}'])
-
-    # Add resource values on top of bars
-    for bar in bars1:
-        yval = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2, yval, f'{int(yval)}', ha='center', va='bottom')
-
-    # Plot cooperation and betrayal rates
-    bar_width = 0.35
-    index = np.arange(2)
-    bars2_coop = ax2.bar(index, cooperation_rate, bar_width, color='green', label='Cooperation Rate')
-    bars2_betrayal = ax2.bar(index + bar_width, betrayal_rate, bar_width, color='red', label='Betrayal Rate')
-
-    ax2.set_xlabel('Players')
-    ax2.set_ylabel('Rate (%)')
-    ax2.set_title('Best vs Worst Player (Cooperation/Betrayal Rates)')
-    ax2.set_xticks(index + bar_width/2)
-    ax2.set_xticklabels([f'Best Player {best_player}', f'Worst Player {worst_player}'])
-    ax2.legend()
-
-    # Set y-axis limit for rates
-    ax2.set_ylim(0, 100)
-
-    # Add cooperation and betrayal values on top of bars
-    for bar in bars2_coop:
-        yval = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2, yval, f'{yval:.1f}%', ha='center', va='bottom')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
     
-    for bar in bars2_betrayal:
-        yval = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2, yval, f'{yval:.1f}%', ha='center', va='bottom')
-
+    # Resources plot
+    players = [best_player, worst_player]
+    resources = [best_player_data['resources'], worst_player_data['resources']]
+    sns.barplot(x=players, y=resources, ax=ax1, palette=['#2ca02c', '#d62728'])
+    set_common_style(ax1, 'Resources: Best vs Worst Player', 'Player', 'Total Resources')
+    ax1.set_ylim(0, max(resources) * 1.1)
+    
+    # Rates plot
+    x = np.arange(2)
+    width = 0.35
+    ax2.bar(x - width/2, [best_player_data['cooperation_rate'], worst_player_data['cooperation_rate']], 
+            width, label='Cooperation Rate', color='#2ca02c')
+    ax2.bar(x + width/2, [best_player_data['betrayal_rate'], worst_player_data['betrayal_rate']], 
+            width, label='Betrayal Rate', color='#d62728')
+    
+    set_common_style(ax2, 'Cooperation and Betrayal Rates: Best vs Worst Player', 'Player', 'Rate (%)')
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(players)
+    ax2.legend(loc='upper right', fontsize=12)
+    ax2.set_ylim(0, 100)
+    
+    for ax in [ax1, ax2]:
+        for i, v in enumerate(ax.containers):
+            ax.bar_label(v, label_type='center', fontsize=10)
+    
     plt.tight_layout()
     plt.show()
     return fig
 
 def plot_trust_decay_rate(trust_decay_rates):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 8))
+    players = sorted(trust_decay_rates.keys(), key=lambda x: int(x))
+    values = [trust_decay_rates[player] for player in players]
     
-    players = list(trust_decay_rates.keys())
-    values = list(trust_decay_rates.values())
+    sns.barplot(x=players, y=values, ax=ax, color='#1f77b4', order=players)
+    set_common_style(ax, 'Trust Decay Rate Per Player', 'Player ID', 'Trust Decay Rate')
     
-    ax.bar(players, values, color='blue')
-    for i, v in enumerate(values):
-        ax.text(i, v + 0.1, f'{v:.2f}', ha='center')
-    ax.set_xlabel('Players')
-    ax.set_ylabel('Trust Decay Rate')
-    ax.set_title('Trust Decay Rate Per Player')
+    for i, v in enumerate(ax.containers[0]):
+        ax.text(v.get_x() + v.get_width()/2, v.get_height(), f'{v.get_height():.2f}', 
+                ha='center', va='bottom', fontsize=10)
+    
     plt.tight_layout()
     plt.show()
     return fig
 
 def plot_pre_post_collapse_cooperation(pre_collapse_rate, post_collapse_rate):
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(10, 8))
     
-    ax.bar(['Pre-Collapse', 'Post-Collapse'], [pre_collapse_rate, post_collapse_rate], color=['green', 'orange'])
-    for i, v in enumerate([pre_collapse_rate, post_collapse_rate]):
-        ax.text(i, v + 0.5, f'{v:.2f}%', ha='center')
-    
-    ax.set_xlabel('Condition')
-    ax.set_ylabel('Cooperation Rate (%)')
-    ax.set_title('Pre- and Post-Collapse Cooperation Rate')
+    x = ['Pre-Collapse', 'Post-Collapse']
+    y = [pre_collapse_rate, post_collapse_rate]
+    sns.barplot(x=x, y=y, ax=ax, palette=['#2ca02c', '#d62728'])
+    set_common_style(ax, 'Pre- and Post-Collapse Cooperation Rate', 'Condition', 'Cooperation Rate (%)')
     ax.set_ylim(0, 100)
-    plt.show()
+    
+    for i, v in enumerate(y):
+        ax.text(i, v + 0.5, f'{v:.2f}%', ha='center', va='bottom', fontsize=12)
+    
     plt.tight_layout()
+    plt.show()
     return fig

@@ -48,7 +48,7 @@ class Game:
         self.collapse_contributions = {str(i): 0 for i in range(n_players)}
 
     def choose_target(self, player):
-        if not player.history:
+        if not player.history or random.random() < 0.1:  # 10% chance of random target
             return random.choice([i for i in range(self.n_players) if i != player.id])
         else:
             return max(player.history, key=lambda t: sum(player.history[t]))
@@ -64,8 +64,16 @@ class Game:
             actions[str(player.id)] = action
             if action is not None:
                 betrayals[action].append(str(player.id))
+            player.update_history(str(target_player), action)  # Update player history
 
         results, self.total_points, _, collapse_occurred = game2.play_turn(actions, self.total_points, self.n_resources)
+
+        if collapse_occurred:
+            self.collapse_count += 1
+            for betrayed, betrayers in betrayals.items():
+                if len(betrayers) > 2:
+                    for betrayer in betrayers:
+                        self.collapse_contributions[betrayer] += 1
 
         return {
             'actions': actions,
