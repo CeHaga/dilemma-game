@@ -1,6 +1,6 @@
 import numpy as np
 from simulation_game import Game
-from game2 import play_turn, play_turn_sim2, play_turn_sim3, play_turn_sim4
+from game2 import play_turn_v2, play_turn_sim2_v2
 from evaluation import calculate_metrics
 from graphic_generation import generate_plots
 import matplotlib.pyplot as plt
@@ -12,15 +12,9 @@ def run_simulation_and_analysis(
 ):
     # Choose the appropriate play_turn function based on simulation_type
     if simulation_type == 1:
-        play_turn_func = play_turn
+        play_turn_func = play_turn_v2
     elif simulation_type == 2:
-        play_turn_func = play_turn_sim2
-    elif simulation_type == 3:
-        play_turn_func = play_turn_sim3
-    elif simulation_type == 4:
-        play_turn_func = play_turn_sim4
-    else:
-        raise ValueError("Invalid simulation type. Choose 1, 2, 3, or 4.")
+        play_turn_func = play_turn_sim2_v2
 
     # Run simulation
     game_instance = Game(n_players, n_resources, betray_probabilities, play_turn_func)
@@ -65,9 +59,9 @@ if __name__ == "__main__":
     n_players = 5
     n_resources = 2
     n_rounds = 100
-    betray_probabilities = [0.5, 0.5, 0.5, 0.5, 1.0]
+    betray_probabilities = [0, 0.5, 1, 5, 10]
 
-    scenarios = [1, 2, 3, 4]
+    scenarios = [1, 2]
 
     # Define the path where images will be saved
     image_path = "images"
