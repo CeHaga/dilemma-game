@@ -1,6 +1,6 @@
 import numpy as np
 from simulation_game import Game
-from game2 import play_turn_v2, play_turn_sim2_v2
+from game2 import play_turn_v2, play_turn_sim2_v2, play_turn, play_turn_sim2
 from evaluation import calculate_metrics
 from graphic_generation import generate_plots
 import matplotlib.pyplot as plt
@@ -56,18 +56,23 @@ def run_simulation_and_analysis(
 
 if __name__ == "__main__":
     # Set simulation parameters
-    n_players = 5
-    n_resources = 2
-    n_rounds = 100
-    betray_probabilities = [0, 0.5, 1, 5, 10]
-
+    n_players = 6
+    n_resources = 1
+    n_rounds = 10000
+    #betray_probabilities = [0.2, 0.8, 0.2, 0.8, 0.2, 0.8]
+    #betray_probabilities = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    betray_probabilities = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+    #betray_probabilities = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     scenarios = [1, 2]
 
-    # Define the path where images will be saved
-    image_path = "images"
+    # Get the current script directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Define the folder name for saving graphics
+    graphics_folder = os.path.join(current_dir, 'images')
 
     # Create the directory if it doesn't exist
-    os.makedirs(image_path, exist_ok=True)
+    os.makedirs(graphics_folder, exist_ok=True)
 
     for scenario in scenarios:
         # Run simulation and analysis
@@ -75,7 +80,7 @@ if __name__ == "__main__":
             n_players, n_resources, n_rounds, betray_probabilities, scenario
         )
 
-        scenario_path = os.path.join(image_path, f"scenario_{scenario}")
+        scenario_path = os.path.join(graphics_folder, f"scenario_{scenario}")
 
         os.makedirs(scenario_path, exist_ok=True)
 
